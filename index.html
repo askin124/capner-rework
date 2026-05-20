@@ -689,19 +689,19 @@ const CONFIG = {
   ADMIN_EMAIL: 'admin@capner.lu',
 
   // EmailJS — à configurer sur emailjs.com
-  EMAILJS_PUBLIC_KEY: 'Lf_wlTSUzVB8yICZx',
-  EMAILJS_SERVICE_ID: 'service_nj94dyn',
-  EMAILJS_TEMPLATE_ID: 'template_55pj2s5',
+  EMAILJS_PUBLIC_KEY: 'VOTRE_CLE_PUBLIQUE_EMAILJS',
+  EMAILJS_SERVICE_ID: 'VOTRE_SERVICE_ID',
+  EMAILJS_TEMPLATE_ID: 'VOTRE_TEMPLATE_ID',
 
   // Colonnes Glide — Prospects/Contacts
   COL_REWORK_STATUT:      'Izom0',
-  COL_REWORK_SOUS_STATUT: 'Mqpe6',
-  COL_REWORK_STATUER_PAR: 'TZFix',
+  COL_REWORK_SOUS_STATUT: 'TZFix',
+  COL_REWORK_STATUER_PAR: 'Mqpe6',
 
   // Colonnes Glide — Réunion Capner
-  COL_RDV_CONTACT_ID:  'GmyHQ',
-  COL_RDV_DATE_DEBUT:  'TuEZ1',
-  COL_RDV_DATE_FIN:    'fhkrN',
+  COL_RDV_CONTACT_ID:  'bJtv8',
+  COL_RDV_DATE_DEBUT:  'Name',
+  COL_RDV_DATE_FIN:    'TuEZ1',
   COL_RDV_STATUT:      '3Rd5D',
   COL_RDV_OTA_MAIL:    'OldWP',
   COL_RDV_OTA_NOM:     '8oTYY',
@@ -955,7 +955,7 @@ async function loadContacts() {
 
     // Query contacts from Glide
     const data = await glideQuery([{
-      tableName: 'Prospects/Contacts',
+      tableName: 'native-table-4f393dd5-acfe-436a-a87b-9405f585dcde',
       limit: 500,
     }]);
 
@@ -963,7 +963,7 @@ async function loadContacts() {
 
     // Load réunions 2025 pour avoir le dernier statut
     const rdvData = await glideQuery([{
-      tableName: 'Réunion Capner',
+      tableName: 'native-table-53ea7a38-99be-43a1-b07e-b92c284f5e57',
       limit: 5000,
     }]);
 
@@ -973,23 +973,27 @@ async function loadContacts() {
     const TARGET_STATUTS = ['Présent avec opportunité','Présent sans opportunité','Absent','Report OTA','Report Client'];
 
     state.contacts = allContacts.filter(c => {
-      const pays = (c['Pays'] || '').toLowerCase();
+      // Real Glide column IDs for Prospects/Contacts:
+      // pays=qjJdX, codePostal=jNUqt, nom=Name, prenom=K24gZ
+      // reworkStatut=Izom0
+      const pays = (c['qjJdX'] || '').toLowerCase();
       if (!['luxembourg','lu'].includes(pays)) return false;
 
-      const cp = parseInt(c['Code postal']);
+      const cp = parseInt(c['jNUqt']);
       if (sectorCodes !== null && !sectorCodes.has(cp)) return false;
 
-      const nom = (c['Nom'] || '').toLowerCase();
-      const prenom = (c['Prénom'] || '').toLowerCase();
+      const nom    = (c['Name']  || '').toLowerCase();
+      const prenom = (c['K24gZ'] || '').toLowerCase();
       for (const ex of CONFIG.EXCLUDED_NAMES) {
         if (nom.includes(ex) || prenom.includes(ex)) return false;
       }
 
       // Pas encore statué Rework
-      if (c[CONFIG.COL_REWORK_STATUT]) return false;
+      if (c['Izom0']) return false;
 
       // Dernier RDV 2025 avec statut cible
-      const rdvInfo = rdvMap[c['🔒 Row ID']];
+      const rowId   = c['$rowID'] || c['rowID'] || '';
+      const rdvInfo = rdvMap[rowId];
       if (!rdvInfo) return false;
       if (!TARGET_STATUTS.includes(rdvInfo.statut)) return false;
 
@@ -1015,23 +1019,30 @@ async function loadContacts() {
 
 function buildRdvMap(rdvs) {
   // Group by contact, keep last RDV in 2025
+  // Real column IDs from Glide schema:
+  // contactId = bJtv8, dateDBut = Name, statutRdv = 3Rd5D
   const map = {};
   for (const rdv of rdvs) {
-    const cid = rdv['Contact / id'];
+    const cid = rdv['bJtv8'];
     if (!cid) continue;
 
-    const dateVal = rdv['Date / Début'];
+    const dateVal = rdv['Name'];
     if (!dateVal) continue;
 
-    const d = new Date(typeof dateVal === 'object' ? dateVal.value : dateVal);
-    if (d.getFullYear() !== 2025) continue;
+    let d;
+    if (typeof dateVal === 'object' && dateVal.value) {
+      d = new Date(dateVal.value);
+    } else {
+      d = new Date(dateVal);
+    }
+    if (isNaN(d) || d.getFullYear() !== 2025) continue;
 
     if (!map[cid] || d > map[cid].dateObj) {
       map[cid] = {
         dateObj: d,
         date: formatDate(d),
-        statut: rdv['Statut / RDV'] || '',
-        id: rdv['🔒 Row ID'],
+        statut: rdv['3Rd5D'] || '',
+        id: rdv['$rowID'] || rdv['rowID'] || '',
       };
     }
   }
@@ -1108,16 +1119,17 @@ function renderList() {
 
   el.innerHTML = state.filtered.slice(0, 50).map((c, i) => {
     const sc = RDV_STATUT_CONFIG[c._rdvStatut] || { dot:'#888', bg:'transparent', color:'#888', short:c._rdvStatut };
+    const rowId = c['$rowID'] || c['rowID'] || '';
     return `
-    <div class="contact-row fade-in" onclick="openContact('${c['🔒 Row ID']}')">
+    <div class="contact-row fade-in" onclick="openContact('${rowId}')">
       <div class="contact-num">${i+1}</div>
       <div>
-        <div class="contact-name">${esc(c.Nom)} ${esc(c.Prénom)}</div>
+        <div class="contact-name">${esc(c['Name']||'')} ${esc(c['K24gZ']||'')}</div>
       </div>
       <div>
-        <div class="contact-city">${esc(c.Ville || '')} <span style="color:var(--text3)">${esc(c['Code postal']||'')}</span></div>
+        <div class="contact-city">${esc(c['edSCh']||'')} <span style="color:var(--text3)">${esc(c['jNUqt']||'')}</span></div>
       </div>
-      <div class="contact-tel">${esc(c.Téléphone||'—')}</div>
+      <div class="contact-tel">${esc(c['I9gU4']||'—')}</div>
       <div>
         <span class="status-pill" style="background:${sc.bg};color:${sc.color}">
           <span style="width:6px;height:6px;border-radius:50%;background:${sc.dot};flex-shrink:0"></span>
@@ -1145,20 +1157,20 @@ function updateStats() {
 // CONTACT MODAL
 // ═══════════════════════════════════════════════════════════════
 function openContact(rowId) {
-  const c = state.contacts.find(x => x['🔒 Row ID'] === rowId);
+  const c = state.contacts.find(x => (x['$rowID'] || x['rowID'] || '') === rowId);
   if (!c) return;
   state.currentContact = c;
   state.selectedStatut = null;
 
-  document.getElementById('modal-contact-name').textContent = `${c.Nom} ${c.Prénom}`;
-  document.getElementById('modal-contact-sub').textContent  = `${c.Ville || ''} ${c['Code postal'] || ''} · ${c.Téléphone || ''}`;
+  document.getElementById('modal-contact-name').textContent = `${c['Name']||''} ${c['K24gZ']||''}`;
+  document.getElementById('modal-contact-sub').textContent  = `${c['edSCh']||''} ${c['jNUqt']||''} · ${c['I9gU4']||''}`;
 
-  // Info grid
+  // Info grid — real column IDs
   document.getElementById('modal-info-grid').innerHTML = `
-    <div class="info-item"><div class="info-lbl">Téléphone</div><div class="info-val" style="color:var(--accent)">${esc(c.Téléphone||'—')}</div></div>
-    <div class="info-item"><div class="info-lbl">Ville</div><div class="info-val">${esc(c.Ville||'—')}</div></div>
-    <div class="info-item"><div class="info-lbl">Adresse</div><div class="info-val">${esc((c['Numéro de rue']||'') + ' ' + (c.Adresse||''))}</div></div>
-    <div class="info-item"><div class="info-lbl">Code postal</div><div class="info-val">${esc(c['Code postal']||'—')}</div></div>
+    <div class="info-item"><div class="info-lbl">Téléphone</div><div class="info-val" style="color:var(--accent)">${esc(c['I9gU4']||'—')}</div></div>
+    <div class="info-item"><div class="info-lbl">Ville</div><div class="info-val">${esc(c['edSCh']||'—')}</div></div>
+    <div class="info-item"><div class="info-lbl">Adresse</div><div class="info-val">${esc((c['zk5YY']||'') + ' ' + (c['IIllE']||''))}</div></div>
+    <div class="info-item"><div class="info-lbl">Code postal</div><div class="info-val">${esc(c['jNUqt']||'—')}</div></div>
   `;
 
   // Last RDV
@@ -1233,7 +1245,7 @@ async function submitStatut() {
 
       // 1. Créer RDV dans Glide
       const rdvRow = {};
-      rdvRow[CONFIG.COL_RDV_CONTACT_ID] = c['🔒 Row ID'];
+      rdvRow[CONFIG.COL_RDV_CONTACT_ID] = c['$rowID'] || c['rowID'] || '';
       rdvRow[CONFIG.COL_RDV_DATE_DEBUT] = { _docData:{ kind:'glide-date-time', value:dtStart.getTime(), tzOffset: -dtStart.getTimezoneOffset() } };
       rdvRow[CONFIG.COL_RDV_DATE_FIN]   = { _docData:{ kind:'glide-date-time', value:dtEnd.getTime(),   tzOffset: -dtEnd.getTimezoneOffset() } };
       rdvRow[CONFIG.COL_RDV_STATUT]     = 'Nouveau';
@@ -1255,7 +1267,7 @@ async function submitStatut() {
 
       await glideMutate([{
         kind: 'add-row-to-table',
-        tableName: 'Réunion Capner',
+        tableName: 'native-table-53ea7a38-99be-43a1-b07e-b92c284f5e57',
         columnValues: rdvRow,
       }]);
     }
@@ -1278,13 +1290,14 @@ async function submitStatut() {
 
     await glideMutate([{
       kind: 'set-columns-in-row',
-      tableName: 'Prospects/Contacts',
-      rowID: c['🔒 Row ID'],
+      tableName: 'native-table-4f393dd5-acfe-436a-a87b-9405f585dcde',
+      rowID: c['$rowID'] || c['rowID'] || c['🔒 Row ID'],
       columnValues: contactUpdates,
     }]);
 
     // 3. Retirer de la liste
-    state.contacts = state.contacts.filter(x => x['🔒 Row ID'] !== c['🔒 Row ID']);
+    const _cid = c['$rowID'] || c['rowID'] || '';
+    state.contacts = state.contacts.filter(x => (x['$rowID'] || x['rowID'] || '') !== _cid);
     updateStats();
     renderList();
     document.getElementById('modal-contact').classList.add('hidden');
