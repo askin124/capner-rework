@@ -889,20 +889,22 @@ function logout() {
 async function initMainView() {
   const s = state.session;
 
-  // Header
   document.getElementById('user-name-display').textContent = s.name;
   document.getElementById('user-sector-display').textContent = `${s.team} · Sect. ${s.sectors.join(',')}`;
   document.getElementById('user-dot').style.background = s.color;
   if (s.isAdmin) document.getElementById('btn-admin').style.display = 'inline-flex';
 
-  // Show view immediately, then load contacts in background
   showView('main');
+
+  // Show empty state with load button — no automatic loading
   document.getElementById('contacts-list').innerHTML = `
     <div class="empty-state">
-      <div style="margin-bottom:16px;"><div class="spinner" style="margin:0 auto;"></div></div>
-      <p>Chargement des contacts…</p>
+      <div class="big">📋</div>
+      <p style="margin-bottom:16px;">Prêt à charger vos contacts</p>
+      <button class="btn btn-primary" style="width:auto;" onclick="loadContacts()">
+        Charger mes contacts
+      </button>
     </div>`;
-  loadContacts(); // no await — runs in background
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -944,10 +946,7 @@ async function glideQuery(queries) {
     allItems = allItems.concat(rows);
     console.log(`[Glide] Page ${page+1}: +${rows.length} rows (total: ${allItems.length}) next: ${next ? 'yes' : 'no'}`);
     // Update loading message
-    const listEl = document.getElementById('contacts-list');
-    if (listEl && listEl.querySelector('.empty-state')) {
-      listEl.querySelector('p').textContent = `Chargement… ${allItems.length} lignes récupérées`;
-    }
+    updateLoadingMsg(`Chargement… ${allItems.length} lignes récupérées`);
 
     if (!next) break; // no more pages
 
@@ -984,11 +983,16 @@ async function glideMutate(mutations) {
 // LOAD CONTACTS
 // ═══════════════════════════════════════════════════════════════
 async function loadContacts() {
+  // Show inline loading state
+  document.getElementById('contacts-list').innerHTML = `
+    <div class="empty-state" id="loading-state">
+      <div style="margin-bottom:16px;"><div class="spinner" style="margin:0 auto;"></div></div>
+      <p id="loading-msg">Initialisation…</p>
+    </div>`;
   showLoading(true);
   try {
     const sectorCodes = getSectorPostalCodes();
 
-    // Step 1: Load ALL RDVs and build map of contact IDs with valid 2025 statuts
     updateLoadingMsg('Chargement des rendez-vous 2025…');
     const rdvData = await glideQuery([{
       tableName: 'native-table-53ea7a38-99be-43a1-b07e-b92c284f5e57',
@@ -1459,11 +1463,9 @@ function showLoading(v) {
 }
 
 function updateLoadingMsg(msg) {
-  const listEl = document.getElementById('contacts-list');
-  if (listEl) {
-    const p = listEl.querySelector('p');
-    if (p) p.textContent = msg;
-  }
+  const p = document.getElementById('loading-msg');
+  if (p) p.textContent = msg;
+  console.log('[Loading]', msg);
 }
 
 function showMsg(el, msg, type) {
