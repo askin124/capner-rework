@@ -919,9 +919,16 @@ async function loadContacts() {
       const rework = (c[CONFIG.COL_REWORK_STATUT]||'').toString().trim();
 
       // À rappeler list: contacts statuted as "A rappeler" by this agent
-      if (rework === 'A rappeler' && c[CONFIG.COL_REWORK_STATUER_PAR] === state.session.email) {
-        state.rappelContacts.push(c);
-        return;
+      // Match by email OR Glide ID
+      if (rework === 'A rappeler') {
+        const statuPar = (c[CONFIG.COL_REWORK_STATUER_PAR] || '').trim();
+        const agentData = state.agents.find(a => a.email === state.session.email) || {};
+        const matchEmail   = statuPar === state.session.email;
+        const matchGlideId = agentData.glideId && statuPar === agentData.glideId;
+        if (matchEmail || matchGlideId) {
+          state.rappelContacts.push(c);
+          return;
+        }
       }
 
       // Main list: no rework statut + valid 2025 RDV
