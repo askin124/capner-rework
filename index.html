@@ -44,12 +44,13 @@ body { font-family:'Roboto',sans-serif; background:var(--bg); color:var(--text);
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* VIEWS */
-.view { display:none; }
-.view.active { display:block; }
+.view { display:none !important; }
+.view.active { display:block !important; }
+#view-login.active { display:block !important; }
 
 /* LOGIN */
-#view-login { min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:#f8f9fa; }
-#view-login.active { display:flex !important; }
+#view-login { background:#f8f9fa; }
+.login-center { min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px; }
 
 .login-card {
   background:#fff;border-radius:12px;padding:48px 40px;width:100%;max-width:400px;
@@ -302,6 +303,7 @@ input:focus,select:focus { border-color:var(--accent);box-shadow:0 0 0 2px rgba(
 
 <!-- LOGIN -->
 <div id="view-login" class="view">
+  <div class="login-center">
   <div class="login-card fade-in">
     <div class="login-logo">Capner <span>Call</span></div>
     <div class="login-sub">Plateforme de requalification contacts</div>
@@ -891,6 +893,10 @@ async function loadContacts() {
       const pre = (c[CONFIG.COL_PRENOM]||'').toLowerCase();
       if (CONFIG.EXCLUDED_NAMES.some(ex => nom.includes(ex) || pre.includes(ex))) return;
 
+      // Exclude if contact qualification contains "signé"
+      const qualifStatut = (c['TgwEL']||'').toLowerCase();
+      if (qualifStatut.includes('signé') || qualifStatut.includes('signe')) return;
+
       const rework = (c[CONFIG.COL_REWORK_STATUT]||'').toString().trim();
 
       // À rappeler list: contacts statuted as "A rappeler" by this agent
@@ -927,10 +933,19 @@ function refreshContacts() { loadContacts(); }
 function buildRdvMap(rdvs) {
   const map = {};
   const excludedByAbc = new Set();
+  const excludedBySigne = new Set();
+
   for (const rdv of rdvs) {
     const cid = rdv[CONFIG.COL_RDV_CONTACT_ID];
     if (!cid) continue;
+
+    // Exclude if source ABC - DB
     if ((rdv[CONFIG.COL_RDV_ORIGINE]||'').trim() === 'ABC - DB') { excludedByAbc.add(cid); }
+
+    // Exclude if any RDV statut contains "signé" (any year)
+    const rdvStatut = (rdv[CONFIG.COL_RDV_STATUT]||'').toLowerCase();
+    if (rdvStatut.includes('signé') || rdvStatut.includes('signe')) { excludedBySigne.add(cid); }
+
     const dateVal = rdv[CONFIG.COL_RDV_DATE_DEBUT];
     if (!dateVal) continue;
     const d = new Date(typeof dateVal === 'object' && dateVal.value ? dateVal.value : dateVal);
@@ -940,6 +955,8 @@ function buildRdvMap(rdvs) {
     }
   }
   excludedByAbc.forEach(cid => delete map[cid]);
+  excludedBySigne.forEach(cid => delete map[cid]);
+  console.log('[buildRdvMap] Exclus ABC-DB:', excludedByAbc.size, '— Exclus Signés:', excludedBySigne.size, '— Valides:', Object.keys(map).length);
   return map;
 }
 
