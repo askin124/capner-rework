@@ -920,6 +920,7 @@ async function glideQuery(queries) {
   }
   const raw = await res.json();
   console.log('[Glide] Raw response keys:', Object.keys(raw));
+  console.log('[Glide] Full raw response:', JSON.stringify(raw).slice(0, 500));
 
   // Glide returns { "0": { rows: [...] }, "1": { rows: [...] } }
   // Normalize to { items: [...] }
