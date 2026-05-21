@@ -1159,13 +1159,10 @@ async function submitStatut() {
       // Glide tzOffset = JS getTimezoneOffset() directly (e.g. -120 for UTC+2)
       const tzOffset = dtStart.getTimezoneOffset(); // -120 for UTC+2 Luxembourg
 
-      // Name = dateDBut = date de début du RDV
-      // Send both formats to handle Glide API variations
-      rdvRow['Name']  = { _docData:{ kind:'glide-date-time', value:dtStart.getTime(), tzOffset:tzOffset } };
-      // TuEZ1 = dateFin = date de fin du RDV
-      rdvRow['TuEZ1'] = { _docData:{ kind:'glide-date-time', value:dtEnd.getTime(), tzOffset:tzOffset } };
-      // fhkrN = datePriseDeRdv = maintenant (date de création)
-      rdvRow['fhkrN'] = { _docData:{ kind:'glide-date-time', value:now.getTime(), tzOffset:now.getTimezoneOffset() } };
+      // mutateTables API expects ISO strings for date-time columns
+      rdvRow['Name']  = dtStart.toISOString(); // dateDBut = date de début
+      rdvRow['TuEZ1'] = dtEnd.toISOString();   // dateFin = date de fin
+      rdvRow['fhkrN'] = now.toISOString();     // datePriseDeRdv = maintenant
 
       console.log('[RDV] Creating with dates:', {
         debut: dtStart.toISOString(),
