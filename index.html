@@ -395,6 +395,15 @@ input:focus,select:focus { border-color:var(--accent);box-shadow:0 0 0 2px rgba(
           <span class="filter-dot" style="background:var(--orange)"></span>Report Client
         </button>
       </div>
+      <!-- Sector filters — RDA only -->
+      <div id="sector-filters" class="filters" style="display:none;margin-top:-8px;">
+        <span style="font-size:12px;font-weight:500;color:var(--text2);padding:6px 4px;">Secteur :</span>
+        <button class="filter-btn active" id="sf-all" onclick="setSectorFilter('all',this)">Tous</button>
+        <button class="filter-btn" id="sf-A" onclick="setSectorFilter('A',this)">Secteur A</button>
+        <button class="filter-btn" id="sf-B" onclick="setSectorFilter('B',this)">Secteur B</button>
+        <button class="filter-btn" id="sf-C" onclick="setSectorFilter('C',this)">Secteur C</button>
+        <button class="filter-btn" id="sf-D" onclick="setSectorFilter('D',this)">Secteur D</button>
+      </div>
       <div class="table-wrap">
         <div class="table-header">
           <div>#</div><div>Contact</div><div>Ville / CP</div>
@@ -685,6 +694,7 @@ let state = {
   rappelContacts: [],
   filtered: [],
   activeFilter: 'all',
+  activeSectorFilter: 'all',
   currentContact: null,
   selectedStatut: null,
   agents: [],
@@ -915,6 +925,17 @@ async function loadContacts() {
       c._rdvStatut = rdvInfo.statut;
       c._rdvDate   = rdvInfo.date;
       c._rdvId     = rdvInfo.id;
+      // Tag contact sector for RDA filtering
+      const cpInt = parseInt(c[CONFIG.COL_CP]);
+      const sectorCodes2 = getSectorPostalCodes();
+      const s = state.session;
+      if (s && s.team && SECTOR_DATA[s.team]) {
+        for (const sec of ['A','B','C','D']) {
+          if ((SECTOR_DATA[s.team][sec]||[]).includes(cpInt)) {
+            c._sector = sec; break;
+          }
+        }
+      }
       state.contacts.push(c);
     });
 
@@ -977,15 +998,28 @@ const RDV_CFG = {
 
 function setFilter(f, btn) {
   state.activeFilter = f;
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  // Only deactivate statut filter buttons (not sector ones)
+  document.querySelectorAll('#filters-bar .filter-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   renderList();
+}
+
+function setSectorFilter(s, btn) {
+  state.activeSectorFilter = s;
+  document.querySelectorAll('#sector-filters .filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderList();
+  updateStats(); // refresh stats to reflect sector filter
 }
 
 function renderList() {
   const search = (document.getElementById('search-input')?.value||'').toLowerCase();
   state.filtered = state.contacts.filter(c => {
     if (state.activeFilter !== 'all' && c._rdvStatut !== state.activeFilter) return false;
+    // Sector filter (RDA only)
+    if (state.activeSectorFilter !== 'all' && c._sector !== undefined) {
+      if (c._sector !== state.activeSectorFilter) return false;
+    }
     if (search) {
       const hay = `${c[CONFIG.COL_NOM]} ${c[CONFIG.COL_PRENOM]} ${c[CONFIG.COL_VILLE]} ${c[CONFIG.COL_CP]}`.toLowerCase();
       if (!hay.includes(search)) return false;
@@ -1052,7 +1086,10 @@ function renderRappelList() {
 }
 
 function updateStats() {
-  const c = state.contacts;
+  // Apply sector filter to stats if active
+  const c = state.activeSectorFilter === 'all'
+    ? state.contacts
+    : state.contacts.filter(x => x._sector === state.activeSectorFilter);
   document.getElementById('stat-total').textContent = c.length;
   document.getElementById('stat-present-opp').textContent = c.filter(x=>x._rdvStatut==='Présent avec opportunité').length;
   document.getElementById('stat-present-no').textContent  = c.filter(x=>x._rdvStatut==='Présent sans opportunité').length;
