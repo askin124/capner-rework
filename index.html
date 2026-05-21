@@ -773,9 +773,16 @@ function getDefaultAgents() {
 // VIEWS
 // ═══════════════════════════════════════════════════════════════
 function showView(id) {
+  console.log('[showView]', id);
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   const el = document.getElementById('view-' + id);
-  if (el) { el.classList.add('active'); el.classList.add('fade-in'); }
+  if (el) {
+    el.classList.add('active');
+    el.classList.add('fade-in');
+    console.log('[showView] activated view-' + id);
+  } else {
+    console.error('[showView] element not found: view-' + id);
+  }
 }
 
 function showMain() { showView('main'); }
@@ -894,7 +901,9 @@ async function initMainView() {
   document.getElementById('user-dot').style.background = s.color;
   if (s.isAdmin) document.getElementById('btn-admin').style.display = 'inline-flex';
 
+  console.log('[initMainView] calling showView main');
   showView('main');
+  console.log('[initMainView] showView called');
 
   // Show empty state with load button — no automatic loading
   document.getElementById('contacts-list').innerHTML = `
