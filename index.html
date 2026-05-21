@@ -755,7 +755,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   const savedSession = localStorage.getItem('capner_session');
   if (savedSession) {
     state.session = JSON.parse(savedSession);
-    await initMainView();
+    initMainView(); // no await — show immediately
   } else {
     showView('login');
   }
@@ -988,38 +988,34 @@ async function loadContacts() {
   try {
     const sectorCodes = getSectorPostalCodes();
 
-    // Query ONLY Luxembourg contacts with no Rework statut yet
-    // Using Glide filter to reduce data transfer massively
-    const data = await glideQuery([{
-      tableName: 'native-table-4f393dd5-acfe-436a-a87b-9405f585dcde',
-      limit: 5000,
-      filters: [
-        { column: 'qjJdX', condition: '$match', values: ['Luxembourg'] },
-        { column: 'Izom0', condition: '$empty', values: [] },
-      ],
-    }]);
-
-    const allContacts = data.items || [];
-    console.log('[Filter] Contacts LUX sans rework:', allContacts.length);
-
-    // Query only 2025 RDVs
+    // Step 1: Load ALL RDVs and build map of contact IDs with valid 2025 statuts
+    updateLoadingMsg('Chargement des rendez-vous 2025…');
     const rdvData = await glideQuery([{
       tableName: 'native-table-53ea7a38-99be-43a1-b07e-b92c284f5e57',
       limit: 5000,
-      filters: [
-        { column: 'zINP7', condition: '$match', values: [2025] },
-      ],
     }]);
 
     const allRdvs = rdvData.items || [];
     const rdvMap = buildRdvMap(allRdvs);
+    const validContactIds = new Set(Object.keys(rdvMap));
+    console.log('[Filter] Contacts avec RDV 2025 valide:', validContactIds.size);
+
+    // Step 2: Load contacts — but only process those in validContactIds
+    updateLoadingMsg(`Chargement des contacts (${validContactIds.size} avec RDV 2025)…`);
+    const data = await glideQuery([{
+      tableName: 'native-table-4f393dd5-acfe-436a-a87b-9405f585dcde',
+      limit: 5000,
+    }]);
+    const allContacts = data.items || [];
+    console.log('[Filter] Total contacts chargés:', allContacts.length);
 
     const TARGET_STATUTS = ['Présent avec opportunité','Présent sans opportunité','Absent','Report OTA','Report Client'];
 
     state.contacts = allContacts.filter(c => {
-      // Real Glide column IDs for Prospects/Contacts:
-      // pays=qjJdX, codePostal=jNUqt, nom=Name, prenom=K24gZ
-      // reworkStatut=Izom0
+      const rowId = c['$rowID'] || c['rowID'] || '';
+      // Quick exit: skip contacts with no matching RDV 2025
+      if (!validContactIds.has(rowId)) return false;
+
       const pays = (c['qjJdX'] || '').toLowerCase();
       if (!['luxembourg','lu'].includes(pays)) return false;
 
@@ -1036,7 +1032,6 @@ async function loadContacts() {
       if (c['Izom0']) return false;
 
       // Dernier RDV 2025 avec statut cible
-      const rowId   = c['$rowID'] || c['rowID'] || '';
       const rdvInfo = rdvMap[rowId];
       if (!rdvInfo) return false;
       if (!TARGET_STATUTS.includes(rdvInfo.statut)) return false;
@@ -1459,9 +1454,16 @@ function closeAgentModal(e) {
 // UTILS
 // ═══════════════════════════════════════════════════════════════
 function showLoading(v) {
-  // Visual feedback on refresh button
   const btn = document.querySelector('[onclick="refreshContacts()"]');
   if (btn) btn.textContent = v ? '↻ Chargement…' : '↻ Actualiser';
+}
+
+function updateLoadingMsg(msg) {
+  const listEl = document.getElementById('contacts-list');
+  if (listEl) {
+    const p = listEl.querySelector('p');
+    if (p) p.textContent = msg;
+  }
 }
 
 function showMsg(el, msg, type) {
