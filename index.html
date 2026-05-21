@@ -895,8 +895,14 @@ async function initMainView() {
   document.getElementById('user-dot').style.background = s.color;
   if (s.isAdmin) document.getElementById('btn-admin').style.display = 'inline-flex';
 
+  // Show view immediately, then load contacts in background
   showView('main');
-  await loadContacts();
+  document.getElementById('contacts-list').innerHTML = `
+    <div class="empty-state">
+      <div style="margin-bottom:16px;"><div class="spinner" style="margin:0 auto;"></div></div>
+      <p>Chargement des contacts…</p>
+    </div>`;
+  loadContacts(); // no await — runs in background
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -907,7 +913,7 @@ async function glideQuery(queries) {
   let allItems = [];
   let currentQueries = queries;
   let page = 0;
-  const MAX_PAGES = 20; // safety limit
+  const MAX_PAGES = 100; // enough for all data
 
   while (page < MAX_PAGES) {
     const body = { appID: CONFIG.GLIDE_APP_ID, queries: currentQueries };
@@ -937,6 +943,11 @@ async function glideQuery(queries) {
 
     allItems = allItems.concat(rows);
     console.log(`[Glide] Page ${page+1}: +${rows.length} rows (total: ${allItems.length}) next: ${next ? 'yes' : 'no'}`);
+    // Update loading message
+    const listEl = document.getElementById('contacts-list');
+    if (listEl && listEl.querySelector('.empty-state')) {
+      listEl.querySelector('p').textContent = `Chargement… ${allItems.length} lignes récupérées`;
+    }
 
     if (!next) break; // no more pages
 
@@ -975,21 +986,29 @@ async function glideMutate(mutations) {
 async function loadContacts() {
   showLoading(true);
   try {
-    // Load SECTOR postal codes for the agent
     const sectorCodes = getSectorPostalCodes();
 
-    // Query contacts from Glide
+    // Query ONLY Luxembourg contacts with no Rework statut yet
+    // Using Glide filter to reduce data transfer massively
     const data = await glideQuery([{
       tableName: 'native-table-4f393dd5-acfe-436a-a87b-9405f585dcde',
-      limit: 500,
+      limit: 5000,
+      filters: [
+        { column: 'qjJdX', condition: '$match', values: ['Luxembourg'] },
+        { column: 'Izom0', condition: '$empty', values: [] },
+      ],
     }]);
 
     const allContacts = data.items || [];
+    console.log('[Filter] Contacts LUX sans rework:', allContacts.length);
 
-    // Load réunions 2025 pour avoir le dernier statut
+    // Query only 2025 RDVs
     const rdvData = await glideQuery([{
       tableName: 'native-table-53ea7a38-99be-43a1-b07e-b92c284f5e57',
       limit: 5000,
+      filters: [
+        { column: 'zINP7', condition: '$match', values: [2025] },
+      ],
     }]);
 
     const allRdvs = rdvData.items || [];
