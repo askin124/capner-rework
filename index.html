@@ -1156,15 +1156,25 @@ async function submitStatut() {
 
       rdvRow[CONFIG.COL_RDV_CONTACT_ID] = c['$rowID']||c['rowID']||'';
 
-      // Glide date-time format: tzOffset is POSITIVE for UTC+ (e.g. 120 for UTC+2)
-      const tzOffset = -dtStart.getTimezoneOffset(); // e.g. 120 for UTC+2
+      // Glide tzOffset = JS getTimezoneOffset() directly (e.g. -120 for UTC+2)
+      const tzOffset = dtStart.getTimezoneOffset(); // -120 for UTC+2 Luxembourg
 
       // Name = dateDBut = date de début du RDV
+      // Send both formats to handle Glide API variations
       rdvRow['Name']  = { _docData:{ kind:'glide-date-time', value:dtStart.getTime(), tzOffset:tzOffset } };
       // TuEZ1 = dateFin = date de fin du RDV
       rdvRow['TuEZ1'] = { _docData:{ kind:'glide-date-time', value:dtEnd.getTime(), tzOffset:tzOffset } };
       // fhkrN = datePriseDeRdv = maintenant (date de création)
-      rdvRow['fhkrN'] = { _docData:{ kind:'glide-date-time', value:now.getTime(), tzOffset:-now.getTimezoneOffset() } };
+      rdvRow['fhkrN'] = { _docData:{ kind:'glide-date-time', value:now.getTime(), tzOffset:now.getTimezoneOffset() } };
+
+      console.log('[RDV] Creating with dates:', {
+        debut: dtStart.toISOString(),
+        fin:   dtEnd.toISOString(),
+        prise: now.toISOString(),
+        tzOffset,
+        nameValue: rdvRow['Name'],
+        tuez1Value: rdvRow['TuEZ1'],
+      });
 
       // Computed date fields
       const weekNum = getWeekNumber(dtStart);
