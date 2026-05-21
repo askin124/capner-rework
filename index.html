@@ -1146,15 +1146,34 @@ async function submitStatut() {
       const dtStart = new Date(dtVal);
       const dtEnd   = new Date(dtStart.getTime() + CONFIG.RDV_DURATION_MIN * 60000);
       const rdvRow = {};
+      // TEST USER override — replace with real user IDs once validated
+      const TEST_USER = {
+        email:       'olivierdubost@gmail.com',
+        nom:         'Olivier',
+        glideId:     'GAM5E-1mSZ2TO75kwXNV.g',
+        entrepriseId:'bkQgmVpdQl64GXX8lKvyZg',
+      };
+
       rdvRow[CONFIG.COL_RDV_CONTACT_ID] = c['$rowID']||c['rowID']||'';
-      rdvRow[CONFIG.COL_RDV_DATE_DEBUT] = { _docData:{ kind:'glide-date-time', value:dtStart.getTime(), tzOffset:-dtStart.getTimezoneOffset() } };
-      rdvRow[CONFIG.COL_RDV_DATE_FIN]   = { _docData:{ kind:'glide-date-time', value:dtEnd.getTime(),   tzOffset:-dtEnd.getTimezoneOffset() } };
-      rdvRow[CONFIG.COL_RDV_STATUT]     = 'Nouveau';
-      rdvRow[CONFIG.COL_RDV_OTA_MAIL]   = agent.email;
-      rdvRow[CONFIG.COL_RDV_OTA_NOM]    = agent.name;
-      rdvRow[CONFIG.COL_RDV_TYPE]        = 'Commercial';
-      rdvRow[CONFIG.COL_RDV_ANNEE]       = dtStart.getFullYear();
-      rdvRow[CONFIG.COL_RDV_ORIGINE]     = 'ABC - DB';
+
+      // Date début (Name = dateDBut)
+      rdvRow['Name']  = { _docData:{ kind:'glide-date-time', value:dtStart.getTime(), tzOffset:-dtStart.getTimezoneOffset() } };
+      // Date fin (TuEZ1 = dateFin)
+      rdvRow['TuEZ1'] = { _docData:{ kind:'glide-date-time', value:dtEnd.getTime(), tzOffset:-dtEnd.getTimezoneOffset() } };
+      // Date prise de RDV (fhkrN = datePriseDeRdv) = maintenant
+      rdvRow['fhkrN'] = { _docData:{ kind:'glide-date-time', value:now.getTime(), tzOffset:-now.getTimezoneOffset() } };
+
+      rdvRow[CONFIG.COL_RDV_STATUT]   = 'Nouveau';
+      rdvRow[CONFIG.COL_RDV_TYPE]     = 'Commercial';
+      rdvRow[CONFIG.COL_RDV_ANNEE]    = dtStart.getFullYear();
+      rdvRow[CONFIG.COL_RDV_ORIGINE]  = 'ABC - DB';
+
+      // OTA fields — TEST USER
+      rdvRow['OldWP'] = TEST_USER.email;      // acteursEncodParMail
+      rdvRow['8oTYY'] = TEST_USER.nom;        // acteursEncodParNom
+      rdvRow['iO6gU'] = TEST_USER.glideId;    // acteursEncodParId
+      rdvRow['Me7NK'] = TEST_USER.entrepriseId; // acteursEncodParEntreprise
+      rdvRow['GmyHQ'] = TEST_USER.entrepriseId; // entrepriseId
       rdvRow[CONFIG.COL_RDV_LOG]         = JSON.stringify({ date:formatDateFr(now), user_id:agent.email, action:'Création', OTA:agent.name, statut:'Nouveau', dateDebut:formatDateFr(dtStart), dateFin:formatDateFr(dtEnd) });
       await glideMutate([{ kind:'add-row-to-table', tableName:CONFIG.TABLE_RDV, columnValues:rdvRow }]);
     }
