@@ -1146,7 +1146,7 @@ async function submitStatut() {
       const dtStart = new Date(dtVal);
       const dtEnd   = new Date(dtStart.getTime() + CONFIG.RDV_DURATION_MIN * 60000);
       const rdvRow = {};
-      // TEST USER override — replace with real user IDs once validated
+      // TEST USER — replace with dynamic user lookup once validated
       const TEST_USER = {
         email:       'olivierdubost@gmail.com',
         nom:         'Olivier',
@@ -1156,24 +1156,37 @@ async function submitStatut() {
 
       rdvRow[CONFIG.COL_RDV_CONTACT_ID] = c['$rowID']||c['rowID']||'';
 
-      // Date début (Name = dateDBut)
+      // Name = dateDBut = date de début du RDV (quand le RDV a lieu)
       rdvRow['Name']  = { _docData:{ kind:'glide-date-time', value:dtStart.getTime(), tzOffset:-dtStart.getTimezoneOffset() } };
-      // Date fin (TuEZ1 = dateFin)
+      // TuEZ1 = dateFin = date de fin du RDV
       rdvRow['TuEZ1'] = { _docData:{ kind:'glide-date-time', value:dtEnd.getTime(), tzOffset:-dtEnd.getTimezoneOffset() } };
-      // Date prise de RDV (fhkrN = datePriseDeRdv) = maintenant
+      // fhkrN = datePriseDeRdv = maintenant (date de création du RDV)
       rdvRow['fhkrN'] = { _docData:{ kind:'glide-date-time', value:now.getTime(), tzOffset:-now.getTimezoneOffset() } };
 
-      rdvRow[CONFIG.COL_RDV_STATUT]   = 'Nouveau';
-      rdvRow[CONFIG.COL_RDV_TYPE]     = 'Commercial';
-      rdvRow[CONFIG.COL_RDV_ANNEE]    = dtStart.getFullYear();
-      rdvRow[CONFIG.COL_RDV_ORIGINE]  = 'ABC - DB';
+      // Computed date fields from dtStart
+      rdvRow['hyMx5'] = dtStart.getFullYear();           // dateEncodLeAnnee
+      rdvRow['xU2Um'] = dtStart.getFullYear();           // dateAnnéePriseDeRdv
+      rdvRow['zINP7'] = dtStart.getFullYear();           // dateAnnéeDBut
+      rdvRow['RPKsR'] = dtStart.getMonth() + 1;          // dateMoisPriseDeRdv
+      rdvRow['0L1xj'] = dtStart.getMonth() + 1;          // dateMoisDBut
+      rdvRow['dNzif'] = dtStart.getDate();               // dateJourPriseDeRdv
+      rdvRow['0ZHJm'] = dtStart.getDate();               // dateJourDBut
 
-      // OTA fields — TEST USER
-      rdvRow['OldWP'] = TEST_USER.email;      // acteursEncodParMail
-      rdvRow['8oTYY'] = TEST_USER.nom;        // acteursEncodParNom
-      rdvRow['iO6gU'] = TEST_USER.glideId;    // acteursEncodParId
+      rdvRow[CONFIG.COL_RDV_STATUT]  = 'Nouveau';
+      rdvRow[CONFIG.COL_RDV_TYPE]    = 'Commercial';
+      rdvRow[CONFIG.COL_RDV_ORIGINE] = 'ABC - DB';
+
+      // Encodé par (qui a créé le RDV dans l'app) — TEST USER
+      rdvRow['OldWP'] = TEST_USER.email;        // acteursEncodParMail
+      rdvRow['8oTYY'] = TEST_USER.nom;          // acteursEncodParNom
+      rdvRow['iO6gU'] = TEST_USER.glideId;      // acteursEncodParId
       rdvRow['Me7NK'] = TEST_USER.entrepriseId; // acteursEncodParEntreprise
       rdvRow['GmyHQ'] = TEST_USER.entrepriseId; // entrepriseId
+
+      // En charge du RDV (l'OTA qui va faire le RDV) — TEST USER
+      rdvRow['Vtjdc'] = TEST_USER.email;        // acteursEnChargeDuRdvMail
+      rdvRow['ocxi7'] = TEST_USER.glideId;      // acteursEnChargeDuRdvId
+      rdvRow['9enHW'] = TEST_USER.nom;          // acteursEnChargeDuRdvNom
       rdvRow[CONFIG.COL_RDV_LOG]         = JSON.stringify({ date:formatDateFr(now), user_id:agent.email, action:'Création', OTA:agent.name, statut:'Nouveau', dateDebut:formatDateFr(dtStart), dateFin:formatDateFr(dtEnd) });
       await glideMutate([{ kind:'add-row-to-table', tableName:CONFIG.TABLE_RDV, columnValues:rdvRow }]);
     }
