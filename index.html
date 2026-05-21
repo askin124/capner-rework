@@ -1156,21 +1156,30 @@ async function submitStatut() {
 
       rdvRow[CONFIG.COL_RDV_CONTACT_ID] = c['$rowID']||c['rowID']||'';
 
-      // Name = dateDBut = date de début du RDV (quand le RDV a lieu)
-      rdvRow['Name']  = { _docData:{ kind:'glide-date-time', value:dtStart.getTime(), tzOffset:-dtStart.getTimezoneOffset() } };
+      // Glide date-time format: tzOffset is POSITIVE for UTC+ (e.g. 120 for UTC+2)
+      const tzOffset = -dtStart.getTimezoneOffset(); // e.g. 120 for UTC+2
+
+      // Name = dateDBut = date de début du RDV
+      rdvRow['Name']  = { _docData:{ kind:'glide-date-time', value:dtStart.getTime(), tzOffset:tzOffset } };
       // TuEZ1 = dateFin = date de fin du RDV
-      rdvRow['TuEZ1'] = { _docData:{ kind:'glide-date-time', value:dtEnd.getTime(), tzOffset:-dtEnd.getTimezoneOffset() } };
-      // fhkrN = datePriseDeRdv = maintenant (date de création du RDV)
+      rdvRow['TuEZ1'] = { _docData:{ kind:'glide-date-time', value:dtEnd.getTime(), tzOffset:tzOffset } };
+      // fhkrN = datePriseDeRdv = maintenant (date de création)
       rdvRow['fhkrN'] = { _docData:{ kind:'glide-date-time', value:now.getTime(), tzOffset:-now.getTimezoneOffset() } };
 
-      // Computed date fields from dtStart
-      rdvRow['hyMx5'] = dtStart.getFullYear();           // dateEncodLeAnnee
-      rdvRow['xU2Um'] = dtStart.getFullYear();           // dateAnnéePriseDeRdv
-      rdvRow['zINP7'] = dtStart.getFullYear();           // dateAnnéeDBut
-      rdvRow['RPKsR'] = dtStart.getMonth() + 1;          // dateMoisPriseDeRdv
-      rdvRow['0L1xj'] = dtStart.getMonth() + 1;          // dateMoisDBut
-      rdvRow['dNzif'] = dtStart.getDate();               // dateJourPriseDeRdv
-      rdvRow['0ZHJm'] = dtStart.getDate();               // dateJourDBut
+      // Computed date fields
+      const weekNum = getWeekNumber(dtStart);
+      rdvRow['hyMx5'] = dtStart.getFullYear();       // dateEncodLeAnnee
+      rdvRow['xU2Um'] = dtStart.getFullYear();       // dateAnnéePriseDeRdv
+      rdvRow['zINP7'] = dtStart.getFullYear();       // dateAnnéeDBut
+      rdvRow['RPKsR'] = dtStart.getMonth() + 1;     // dateMoisPriseDeRdv
+      rdvRow['0L1xj'] = dtStart.getMonth() + 1;     // dateMoisDBut
+      rdvRow['dNzif'] = dtStart.getDate();           // dateJourPriseDeRdv
+      rdvRow['0ZHJm'] = dtStart.getDate();           // dateJourDBut
+      rdvRow['uwnyR'] = weekNum;                     // dateSemaineDBut
+      rdvRow['kSyIP'] = weekNum;                     // dateSemainePriseDeRdv
+      rdvRow['QAIuN'] = weekNum;                     // dateEncodLeSemaine
+      rdvRow['TGWf4'] = dtStart.getDate();           // dateEncodLeJour
+      rdvRow['xtBDn'] = dtStart.getMonth() + 1;     // dateEncodLeMois
 
       rdvRow[CONFIG.COL_RDV_STATUT]  = 'Nouveau';
       rdvRow[CONFIG.COL_RDV_TYPE]    = 'Commercial';
@@ -1479,6 +1488,12 @@ function exportReportingExcel() {
 // ═══════════════════════════════════════════════
 // UTILS
 // ═══════════════════════════════════════════════
+function getWeekNumber(d) {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+}
 function showLoading(v) {}
 function updateLoadingMsg(msg) {
   const p = document.getElementById('loading-msg');
