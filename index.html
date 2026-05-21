@@ -918,9 +918,26 @@ async function glideQuery(queries) {
     console.error('[Glide] Error response:', errText);
     throw new Error(`Glide API error: ${res.status} — ${errText.slice(0,200)}`);
   }
-  const data = await res.json();
-  console.log('[Glide] Response keys:', Object.keys(data), '— items:', (data.items||data.rows||[]).length);
-  return data;
+  const raw = await res.json();
+  console.log('[Glide] Raw response keys:', Object.keys(raw));
+
+  // Glide returns { "0": { rows: [...] }, "1": { rows: [...] } }
+  // Normalize to { items: [...] }
+  let items = [];
+  if (Array.isArray(raw)) {
+    items = raw;
+  } else if (raw.items) {
+    items = raw.items;
+  } else if (raw.rows) {
+    items = raw.rows;
+  } else if (raw['0']) {
+    // Multiple queries response — return first query rows
+    const first = raw['0'];
+    items = first.rows || first.items || first || [];
+  }
+  console.log('[Glide] Normalized items:', items.length);
+  if (items.length > 0) console.log('[Glide] First item keys:', Object.keys(items[0]).slice(0, 10));
+  return { items };
 }
 
 async function glideMutate(mutations) {
