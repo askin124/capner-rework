@@ -943,7 +943,10 @@ function buildRdvMap(rdvs) {
     // Exclude if source ABC - DB
     if ((rdv[CONFIG.COL_RDV_ORIGINE]||'').trim() === 'ABC - DB') { excludedByAbc.add(cid); }
 
-    // Exclude if any RDV statut contains "signé" (any year)
+    // Exclude if Statut / Détail sous statut contains "signé" (any year) — col r9NpF
+    const detailSousStatut = (rdv['r9NpF']||'').toLowerCase();
+    if (detailSousStatut.includes('signé') || detailSousStatut.includes('signe')) { excludedBySigne.add(cid); }
+    // Also exclude if RDV statut itself contains "signé"
     const rdvStatut = (rdv[CONFIG.COL_RDV_STATUT]||'').toLowerCase();
     if (rdvStatut.includes('signé') || rdvStatut.includes('signe')) { excludedBySigne.add(cid); }
 
