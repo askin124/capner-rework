@@ -903,42 +903,51 @@ async function initMainView() {
 // GLIDE API
 // ═══════════════════════════════════════════════════════════════
 async function glideQuery(queries) {
-  const body = { appID: CONFIG.GLIDE_APP_ID, queries };
-  console.log('[Glide] Query:', JSON.stringify(body));
-  const res = await fetch(`${CONFIG.GLIDE_API_URL}/queryTables`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${CONFIG.GLIDE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const errText = await res.text();
-    console.error('[Glide] Error response:', errText);
-    throw new Error(`Glide API error: ${res.status} — ${errText.slice(0,200)}`);
-  }
-  const raw = await res.json();
-  console.log('[Glide] Raw response keys:', Object.keys(raw));
-  console.log('[Glide] Full raw response:', JSON.stringify(raw).slice(0, 500));
+  // Glide paginates — we loop through all pages using the 'next' cursor
+  let allItems = [];
+  let currentQueries = queries;
+  let page = 0;
+  const MAX_PAGES = 20; // safety limit
 
-  // Glide returns { "0": { rows: [...] }, "1": { rows: [...] } }
-  // Normalize to { items: [...] }
-  let items = [];
-  if (Array.isArray(raw)) {
-    items = raw;
-  } else if (raw.items) {
-    items = raw.items;
-  } else if (raw.rows) {
-    items = raw.rows;
-  } else if (raw['0']) {
-    // Multiple queries response — return first query rows
-    const first = raw['0'];
-    items = first.rows || first.items || first || [];
+  while (page < MAX_PAGES) {
+    const body = { appID: CONFIG.GLIDE_APP_ID, queries: currentQueries };
+    if (page === 0) console.log('[Glide] Query:', JSON.stringify(body).slice(0, 200));
+
+    const res = await fetch(`${CONFIG.GLIDE_API_URL}/queryTables`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${CONFIG.GLIDE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error('[Glide] Error response:', errText);
+      throw new Error(`Glide API error: ${res.status} — ${errText.slice(0,200)}`);
+    }
+
+    const raw = await res.json();
+
+    // Response is an Array: [ { rows: [...], next: "cursor_or_null" } ]
+    const responseBlock = Array.isArray(raw) ? raw[0] : (raw['0'] || raw);
+    const rows = responseBlock.rows || responseBlock.items || [];
+    const next = responseBlock.next;
+
+    allItems = allItems.concat(rows);
+    console.log(`[Glide] Page ${page+1}: +${rows.length} rows (total: ${allItems.length}) next: ${next ? 'yes' : 'no'}`);
+
+    if (!next) break; // no more pages
+
+    // Next page: pass continuation token
+    currentQueries = queries.map(q => ({ ...q, startAt: next }));
+    page++;
   }
-  console.log('[Glide] Normalized items:', items.length);
-  if (items.length > 0) console.log('[Glide] First item keys:', Object.keys(items[0]).slice(0, 10));
-  return { items };
+
+  console.log('[Glide] Total items loaded:', allItems.length);
+  if (allItems.length > 0) console.log('[Glide] First item keys:', Object.keys(allItems[0]).slice(0, 8));
+  return { items: allItems };
 }
 
 async function glideMutate(mutations) {
