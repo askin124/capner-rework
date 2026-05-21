@@ -689,7 +689,7 @@ const CONFIG = {
   ADMIN_EMAIL: 'admin@capner.lu',
 
   // EmailJS — à configurer sur emailjs.com
-    EMAILJS_PUBLIC_KEY: 'Lf_wlTSUzVB8yICZx',
+  EMAILJS_PUBLIC_KEY: 'Lf_wlTSUzVB8yICZx',
   EMAILJS_SERVICE_ID: 'service_nj94dyn',
   EMAILJS_TEMPLATE_ID: 'template_55pj2s5',
 
@@ -744,9 +744,7 @@ let state = {
 // ═══════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', async () => {
   // EmailJS init
-  if (CONFIG.EMAILJS_PUBLIC_KEY !== 'VOTRE_CLE_PUBLIQUE_EMAILJS') {
-    emailjs.init({ publicKey: CONFIG.EMAILJS_PUBLIC_KEY });
-  }
+  emailjs.init({ publicKey: CONFIG.EMAILJS_PUBLIC_KEY });
 
   // Load agents from localStorage
   const savedAgents = localStorage.getItem('capner_agents');
