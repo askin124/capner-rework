@@ -54,13 +54,16 @@ body {
 @keyframes spin { to { transform:rotate(360deg); } }
 
 /* ── VIEWS ── */
-.view { display:none; }
-.view.active { display:block; }
+.view { display:none !important; }
+.view.active { display:block !important; }
 
 /* ── LOGIN ── */
 #view-login {
-  min-height:100vh; display:flex; align-items:center; justify-content:center;
+  min-height:100vh; align-items:center; justify-content:center;
   padding:20px;
+}
+#view-login.active {
+  display:flex !important;
 }
 .login-box {
   background:var(--bg2); border:1px solid var(--border);
