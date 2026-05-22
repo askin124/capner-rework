@@ -546,6 +546,10 @@ input:focus,select:focus { border-color:var(--accent);box-shadow:0 0 0 2px rgba(
           <label>Date et heure du RDV *</label>
           <input type="datetime-local" id="rdv-datetime">
         </div>
+        <div class="form-group">
+          <label>Remarque (optionnelle)</label>
+          <textarea id="rdv-commentaire" rows="3" placeholder="Commentaire sur le RDV…" style="resize:vertical;"></textarea>
+        </div>
       </div>
       <div id="fields-KO" class="hidden" style="margin-top:16px;">
         <hr class="divider">
@@ -1167,6 +1171,8 @@ function closeContactModal(e) {
   if (e && e.target !== document.getElementById('modal-contact')) return;
   document.getElementById('modal-contact').classList.add('hidden');
   state.currentContact = null; state.selectedStatut = null;
+  const comm = document.getElementById('rdv-commentaire');
+  if (comm) comm.value = '';
 }
 
 function selectStatut(s) {
