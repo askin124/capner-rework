@@ -1166,11 +1166,13 @@ function openContact(rowId, fromRappel=false) {
     if(el) el.classList.add('hidden');
   });
   document.getElementById('modal-contact').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
 }
 
 function closeContactModal(e) {
   if (e && e.target !== document.getElementById('modal-contact')) return;
   document.getElementById('modal-contact').classList.add('hidden');
+  document.body.style.overflow = '';
   state.currentContact = null; state.selectedStatut = null;
   const comm = document.getElementById('rdv-commentaire');
   if (comm) comm.value = '';
@@ -1298,6 +1300,7 @@ async function submitStatut() {
     }
 
     document.getElementById('modal-contact').classList.add('hidden');
+    document.body.style.overflow = '';
     const labels = { OK:'✅ RDV créé !', KO:'Contact KO', 'A rappeler':'🔄 À rappeler', Absent:'Contact marqué absent' };
     showToast(labels[s]||'Statut enregistré','success');
   } catch(e) {
