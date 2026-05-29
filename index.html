@@ -360,7 +360,7 @@ input:focus,select:focus { border-color:var(--accent);box-shadow:0 0 0 2px rgba(
     <!-- Tabs -->
     <div class="tabs">
       <div class="tab active" id="tab-list" onclick="switchTab('list')">📋 Contacts à traiter</div>
-      <div class="tab" id="tab-rappel" onclick="switchTab('rappel')">🔄 À rappeler <span id="rappel-count" style="background:var(--yel-bg);color:var(--yellow);border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px;"></span></div>
+      <div class="tab" id="tab-history" onclick="switchTab('history')">📞 Mes appels passés</div>
     </div>
 
     <!-- Stats -->
@@ -414,17 +414,29 @@ input:focus,select:focus { border-color:var(--accent);box-shadow:0 0 0 2px rgba(
       </div>
     </div>
 
-    <!-- Rappel tab -->
-    <div id="section-rappel" style="display:none;">
-      <div style="color:var(--text2);font-size:13px;margin-bottom:16px;">
-        Contacts que vous avez statués "À rappeler" — vous pouvez les re-statuer.
+
+    <!-- History tab -->
+    <div id="section-history" style="display:none;">
+      <div class="filters" style="margin-bottom:16px;">
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="history-search" placeholder="Rechercher nom, ville, téléphone…" oninput="renderHistoryList()">
+        </div>
+        <select id="history-filter-statut" onchange="renderHistoryList()" style="height:38px;min-width:140px;">
+          <option value="all">Tous les statuts</option>
+          <option value="OK">OK</option>
+          <option value="KO">KO</option>
+          <option value="A rappeler">À rappeler</option>
+          <option value="Absent">Absent</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="loadHistory()">↻ Actualiser</button>
       </div>
       <div class="table-wrap">
-        <div class="table-header">
+        <div class="table-header" style="grid-template-columns:36px 1fr 1fr 140px 100px 160px 44px;">
           <div>#</div><div>Contact</div><div>Ville / CP</div>
-          <div>Téléphone</div><div>Sous-statut</div><div>Date traitement</div><div></div>
+          <div>Téléphone</div><div>Statut</div><div>Date traitement</div><div></div>
         </div>
-        <div id="rappel-list"></div>
+        <div id="history-list"></div>
       </div>
     </div>
   </div>
@@ -568,7 +580,12 @@ input:focus,select:focus { border-color:var(--accent);box-shadow:0 0 0 2px rgba(
             <option>Déménage</option>
             <option>Locataire</option>
             <option>Raison KO non renseignée</option>
+            <option>NE PLUS APPELER !</option>
           </select>
+        </div>
+        <div class="form-group">
+          <label>Remarque (optionnelle)</label>
+          <textarea id="ko-commentaire" rows="3" placeholder="Commentaire…" style="resize:vertical;"></textarea>
         </div>
       </div>
       <div id="fields-Arappeler" class="hidden" style="margin-top:16px;">
@@ -697,6 +714,8 @@ let state = {
   session: null,
   contacts: [],
   rappelContacts: [],
+  historyContacts: [],
+  historyLoaded: false,
   filtered: [],
   activeFilter: 'all',
   activeSectorFilter: 'all',
@@ -751,10 +770,13 @@ function showReporting() { showView('reporting'); if (!state.reportingData.lengt
 function switchTab(tab) {
   state.currentTab = tab;
   document.getElementById('tab-list').classList.toggle('active', tab === 'list');
-  document.getElementById('tab-rappel').classList.toggle('active', tab === 'rappel');
-  document.getElementById('section-list').style.display   = tab === 'list'   ? '' : 'none';
-  document.getElementById('section-rappel').style.display = tab === 'rappel' ? '' : 'none';
-  if (tab === 'rappel') renderRappelList();
+  document.getElementById('tab-history').classList.toggle('active', tab === 'history');
+  document.getElementById('section-list').style.display    = tab === 'list'    ? '' : 'none';
+  document.getElementById('section-history').style.display = tab === 'history' ? '' : 'none';
+  if (tab === 'history') {
+    if (!state.historyLoaded) loadHistory();
+    else renderHistoryList();
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -1080,7 +1102,8 @@ function renderList() {
 function renderRappelList() {
   const el = document.getElementById('rappel-list');
   const count = document.getElementById('rappel-count');
-  count.textContent = state.rappelContacts.length || '';
+  if (count) count.textContent = state.rappelContacts.length || '';
+  if (!el) return; // tab removed
 
   if (state.rappelContacts.length === 0) {
     el.innerHTML = `<div class="empty-state"><div class="big">✅</div><p>Aucun contact en attente de rappel</p></div>`;
@@ -1176,6 +1199,8 @@ function closeContactModal(e) {
   state.currentContact = null; state.selectedStatut = null;
   const comm = document.getElementById('rdv-commentaire');
   if (comm) comm.value = '';
+  const commKo = document.getElementById('ko-commentaire');
+  if (commKo) commKo.value = '';
 }
 
 function selectStatut(s) {
@@ -1271,6 +1296,9 @@ async function submitStatut() {
 
     const sousStatut = s==='KO' ? document.getElementById('ko-sous-statut').value
                     : s==='A rappeler' ? document.getElementById('rappel-sous-statut').value : '';
+    const commentaire = s==='KO'
+      ? (document.getElementById('ko-commentaire')?.value||'').trim()
+      : (document.getElementById('rdv-commentaire')?.value||'').trim();
     if ((s==='KO'||s==='A rappeler') && !sousStatut) {
       showToast('Choisissez un sous-statut.','error'); btn.disabled=false; btn.textContent='Valider'; return;
     }
@@ -1279,24 +1307,33 @@ async function submitStatut() {
     updates[CONFIG.COL_REWORK_STATUT]      = s;
     updates[CONFIG.COL_REWORK_SOUS_STATUT] = sousStatut;
     updates[CONFIG.COL_REWORK_STATUER_PAR] = agent.email;
+    if (commentaire) updates['BP6Qy'] = commentaire;
 
     await glideMutate([{ kind:'set-columns-in-row', tableName:CONFIG.TABLE_CONTACTS, rowID:c['$rowID']||c['rowID']||'', columnValues:updates }]);
 
     // Remove from appropriate list
     const cid = c['$rowID']||c['rowID']||'';
-    if (state.currentContactFromRappel) {
+    // Update contact data in all lists
+    c[CONFIG.COL_REWORK_STATUT]      = s;
+    c[CONFIG.COL_REWORK_SOUS_STATUT] = sousStatut;
+    c[CONFIG.COL_REWORK_STATUER_PAR] = agent.email;
+    if (commentaire) c['BP6Qy'] = commentaire;
+
+    if (state.currentContactFromHistory) {
+      // Update in history list in place
+      state.currentContactFromHistory = false;
+      renderHistoryList();
+    } else if (state.currentContactFromRappel) {
       state.rappelContacts = state.rappelContacts.filter(x=>(x['$rowID']||x['rowID']||'')!==cid);
+      if (s === 'A rappeler') state.rappelContacts.push(c);
       renderRappelList();
     } else {
       state.contacts = state.contacts.filter(x=>(x['$rowID']||x['rowID']||'')!==cid);
-      // If A rappeler, add to rappel list
-      if (s === 'A rappeler') {
-        c[CONFIG.COL_REWORK_STATUT]      = s;
-        c[CONFIG.COL_REWORK_SOUS_STATUT] = sousStatut;
-        c[CONFIG.COL_REWORK_STATUER_PAR] = agent.email;
-        state.rappelContacts.push(c);
-      }
+      if (s === 'A rappeler') state.rappelContacts.push(c);
+      // Add to history
+      state.historyContacts.unshift(c);
       updateStats(); renderList(); renderRappelList();
+      if (state.historyLoaded) renderHistoryList();
     }
 
     document.getElementById('modal-contact').classList.add('hidden');
@@ -1567,6 +1604,134 @@ function exportReportingExcel() {
   XLSX.utils.book_append_sheet(wb, ws2, 'Liste détaillée');
   XLSX.writeFile(wb, `Capner_Rework_Reporting_${new Date().toISOString().slice(0,10)}.xlsx`);
   showToast('Export Excel téléchargé','success');
+}
+
+// ═══════════════════════════════════════════════
+// HISTORY
+// ═══════════════════════════════════════════════
+async function loadHistory() {
+  document.getElementById('history-list').innerHTML = `
+    <div class="empty-state">
+      <div style="margin-bottom:12px;"><div class="spinner" style="margin:0 auto;width:24px;height:24px;border-width:2px;"></div></div>
+      <p id="history-loading-msg">Chargement…</p>
+    </div>`;
+  try {
+    const data = await glideQuery([{ tableName: CONFIG.TABLE_CONTACTS, limit:5000 }]);
+    const agentData = state.agents.find(a => a.email === state.session.email) || {};
+
+    state.historyContacts = (data.items||[]).filter(c => {
+      const rework   = (c[CONFIG.COL_REWORK_STATUT]||'').trim();
+      if (!rework) return false;
+      const statuPar = (c[CONFIG.COL_REWORK_STATUER_PAR]||'').trim();
+      const matchEmail   = statuPar === state.session.email;
+      const matchGlideId = agentData.glideId && statuPar === agentData.glideId;
+      if (!matchEmail && !matchGlideId) return false;
+      const pays = (c[CONFIG.COL_PAYS]||'').toLowerCase();
+      return ['luxembourg','lu'].includes(pays);
+    });
+
+    state.historyLoaded = true;
+    renderHistoryList();
+    showToast(`${state.historyContacts.length} appels chargés`, 'success');
+  } catch(e) {
+    console.error(e);
+    document.getElementById('history-list').innerHTML =
+      `<div class="empty-state"><p style="color:var(--red)">Erreur. <button class="btn btn-outline btn-sm" onclick="loadHistory()">Réessayer</button></p></div>`;
+  }
+}
+
+function renderHistoryList() {
+  const filterStatut = document.getElementById('history-filter-statut')?.value || 'all';
+  const search = (document.getElementById('history-search')?.value||'').toLowerCase();
+  const items = state.historyContacts.filter(c => {
+    const rework = (c[CONFIG.COL_REWORK_STATUT]||'').trim();
+    if (filterStatut !== 'all' && rework !== filterStatut) return false;
+    if (search) {
+      const tel = (c[CONFIG.COL_TEL]||'').toString().replace(/\s/g,'');
+      const hay = `${c[CONFIG.COL_NOM]||''} ${c[CONFIG.COL_PRENOM]||''} ${c[CONFIG.COL_VILLE]||''} ${c[CONFIG.COL_CP]||''} ${tel}`.toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+
+  const el = document.getElementById('history-list');
+  if (items.length === 0) {
+    el.innerHTML = `<div class="empty-state"><div class="big">📭</div><p>Aucun appel trouvé</p></div>`;
+    return;
+  }
+
+  const REWORK_PILLS = {
+    'OK':         'pill-green',
+    'KO':         'pill-red',
+    'A rappeler': 'pill-yellow',
+    'Absent':     'pill-gray',
+  };
+
+  el.innerHTML = items.slice(0, CONFIG.MAX_LIST).map((c, i) => {
+    const rowId   = c['$rowID']||c['rowID']||'';
+    const rework  = c[CONFIG.COL_REWORK_STATUT]||'';
+    const pill    = REWORK_PILLS[rework] || 'pill-gray';
+    const dateT   = c[CONFIG.COL_DATE_DERNIERE_ACTION] ? formatDate(new Date(c[CONFIG.COL_DATE_DERNIERE_ACTION])) : '—';
+    const tel     = (c[CONFIG.COL_TEL]||'').toString().replace(/\s/g,'');
+    return `
+    <div class="contact-row" style="grid-template-columns:36px 1fr 1fr 140px 100px 160px 44px;"
+         onclick="openContactFromHistory('${rowId}')">
+      <div class="contact-num">${i+1}</div>
+      <div><div class="contact-name">${esc(c[CONFIG.COL_NOM]||'')} ${esc(c[CONFIG.COL_PRENOM]||'')}</div></div>
+      <div><div class="contact-city">${esc(c[CONFIG.COL_VILLE]||'')} <span style="color:var(--text3)">${esc(c[CONFIG.COL_CP]||'')}</span></div></div>
+      <div class="contact-tel">${esc(c[CONFIG.COL_TEL]||'—')}</div>
+      <div><span class="status-pill ${pill}">${esc(rework)}</span></div>
+      <div class="contact-date">${dateT}</div>
+      <div><button class="call-btn" onclick="event.stopPropagation();callTel('${tel}')" title="Appeler">📞</button></div>
+    </div>`;
+  }).join('');
+
+  if (items.length > CONFIG.MAX_LIST) {
+    el.innerHTML += `<div style="padding:12px 16px;text-align:center;font-size:13px;color:var(--text2);background:var(--bg2);">
+      Affichage limité à ${CONFIG.MAX_LIST} sur ${items.length} — utilisez le filtre pour affiner</div>`;
+  }
+}
+
+function openContactFromHistory(rowId) {
+  const c = state.historyContacts.find(x => (x['$rowID']||x['rowID']||'') === rowId);
+  if (!c) return;
+  state.currentContact = c;
+  state.currentContactFromRappel = false;
+  state.currentContactFromHistory = true;
+  state.selectedStatut = null;
+
+  document.getElementById('modal-contact-name').textContent = `${c[CONFIG.COL_NOM]||''} ${c[CONFIG.COL_PRENOM]||''}`;
+  document.getElementById('modal-contact-sub').textContent  = `${c[CONFIG.COL_VILLE]||''} ${c[CONFIG.COL_CP]||''} · ${c[CONFIG.COL_TEL]||''}`;
+
+  document.getElementById('modal-info-grid').innerHTML = `
+    <div class="info-item"><div class="info-lbl">Téléphone</div>
+      <div class="info-val" style="color:var(--accent);cursor:pointer;" onclick="callTel('${(c[CONFIG.COL_TEL]||'').toString().replace(/\s/g,'')}')">
+        📞 ${esc(c[CONFIG.COL_TEL]||'—')}
+      </div>
+    </div>
+    <div class="info-item"><div class="info-lbl">Ville</div><div class="info-val">${esc(c[CONFIG.COL_VILLE]||'—')}</div></div>
+    <div class="info-item"><div class="info-lbl">Adresse</div><div class="info-val">${esc((c[CONFIG.COL_RUE_NUM]||'')+' '+(c[CONFIG.COL_ADRESSE]||''))}</div></div>
+    <div class="info-item"><div class="info-lbl">Code postal</div><div class="info-val">${esc(c[CONFIG.COL_CP]||'—')}</div></div>
+  `;
+
+  const rework  = c[CONFIG.COL_REWORK_STATUT]||'';
+  const sousS   = c[CONFIG.COL_REWORK_SOUS_STATUT]||'—';
+  const dateT   = c[CONFIG.COL_DATE_DERNIERE_ACTION] ? formatDate(new Date(c[CONFIG.COL_DATE_DERNIERE_ACTION])) : '—';
+  const REWORK_PILLS = { 'OK':'pill-green','KO':'pill-red','A rappeler':'pill-yellow','Absent':'pill-gray' };
+  document.getElementById('modal-last-rdv-info').innerHTML = `
+    <div class="info-item"><div class="info-lbl">Statut actuel</div><div class="info-val"><span class="status-pill ${REWORK_PILLS[rework]||'pill-gray'}">${esc(rework)}</span></div></div>
+    <div class="info-item"><div class="info-lbl">Sous-statut</div><div class="info-val">${esc(sousS)}</div></div>
+    <div class="info-item"><div class="info-lbl">Date traitement</div><div class="info-val">${dateT}</div></div>
+    <div class="info-item"><div class="info-lbl">Remarque</div><div class="info-val">${esc(c['BP6Qy']||'—')}</div></div>
+  `;
+
+  document.querySelectorAll('.statut-option').forEach(el => el.classList.remove('selected'));
+  ['OK','KO','Arappeler','Absent'].forEach(s => {
+    const el = document.getElementById('fields-'+s);
+    if(el) el.classList.add('hidden');
+  });
+  document.getElementById('modal-contact').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
 }
 
 // ═══════════════════════════════════════════════
