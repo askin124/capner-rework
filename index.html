@@ -1291,6 +1291,7 @@ async function submitStatut() {
 
       // Encodé par (qui a créé le RDV dans l'app) — TEST USER
       rdvRow['OldWP'] = REAL_USER.email;        // acteursEncodParMail
+      rdvRow['ojbA6'] = now.toISOString();          // dateEncodLe
       rdvRow['8oTYY'] = REAL_USER.nom;          // acteursEncodParNom
       rdvRow['iO6gU'] = REAL_USER.glideId;      // acteursEncodParId
       rdvRow['Me7NK'] = REAL_USER.entrepriseId; // acteursEncodParEntreprise
